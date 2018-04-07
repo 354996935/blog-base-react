@@ -2,7 +2,7 @@
  * @Author: zhengyf
  * @Date: 2018-04-07 12:41:21
  * @Last Modified by: zhengyf
- * @Last Modified time: 2018-04-07 14:53:15
+ * @Last Modified time: 2018-04-07 20:29:29
  */
 
 'use strict'
@@ -10,10 +10,13 @@
 const glob = require('glob')
 const path = require('path')
 const HTMLPlugin = require('html-webpack-plugin')
+const ExtractTextPlugin = require('extract-text-webpack-plugin')
 const srcDir = path.resolve(__dirname, '../src')
 
 let Entries = getEntries('/**/*.js') // 入口文件集合
-let HTMLPlugins = creatHTMLFile() // 通过 html-webpack-plugin 生成的 HTML 集合
+let htmlFiles = getEntries('/views/**/*.js') // 需要使用模板的文件
+let HTMLPlugins = getHTMLPlugins() // 通过 html-webpack-plugin 生成的 HTML 集合
+let CSSPlugins = getCSSPlugins() // 通过extract-text-webpack-plugin 为每个页面生成对应的 css文件
 
 const config = {
     entry: Entries,
@@ -45,29 +48,27 @@ const config = {
                 ]
             },
             {
-                test: /\.css$/,
-                use: ['style-loader', 'css-loader']
-            },
-            {
-                test: /\.scss$/,
-                use: [
-                    'style-loader',
-                    'css-loader',
-                    {
-                        loader: 'postcss-loader',
-                        options: {
-                            sourceMap: true,
-                            config: {
-                                path: 'postcss.config.js' // 这个得在项目根目录创建此文件
+                test: /\.(scss|css)$/,
+                use: ExtractTextPlugin.extract({
+                    fallback: 'style-loader',
+                    use: [
+                        'css-loader',
+                        {
+                            loader: 'postcss-loader',
+                            options: {
+                                sourceMap: true,
+                                config: {
+                                    path: 'postcss.config.js' // 这个得在项目根目录创建此文件
+                                }
                             }
-                        }
-                    },
-                    'sass-loader'
-                ]
+                        },
+                        'sass-loader'
+                    ]
+                })
             }
         ]
     },
-    plugins: HTMLPlugins,
+    plugins: HTMLPlugins.concat(CSSPlugins),
     devtool: 'cheap-module-eval-source-map', // eval-source-map
     resolve: {
         alias: {
@@ -102,13 +103,12 @@ function getEntries(targetFilePath) {
  * @description 以index.html为模板，把entry注入到模板文件，生成一个新的页面
  * @returns {Array} htmls
  */
-function creatHTMLFile() {
+function getHTMLPlugins() {
     let htmls = []
-    let pages = getEntries('/views/**/*.js')
 
-    for (let fileName in pages) {
+    for (let fileName in htmlFiles) {
 
-        if (pages.hasOwnProperty(fileName)) {
+        if (htmlFiles.hasOwnProperty(fileName)) {
 
             let filename = fileName.substring(fileName.lastIndexOf('\/') + 1)
             let page = new HTMLPlugin({
@@ -123,6 +123,23 @@ function creatHTMLFile() {
     }
 
     return htmls
+}
+
+/**
+ * @description 为每个页面生成对应的css文件
+ * @returns {array} pageExtractCssArray
+ */
+function getCSSPlugins() {
+    let pageExtractCssArray = []
+
+    for (let fileName in htmlFiles) {
+
+        if (htmlFiles.hasOwnProperty(fileName)) {
+            pageExtractCssArray.push(new ExtractTextPlugin('[name].[hash].css'))
+        }
+    }
+
+    return pageExtractCssArray
 }
 
 module.exports = config
